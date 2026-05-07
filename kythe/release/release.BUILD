@@ -1,5 +1,7 @@
 load(":extractors.bzl", "extractor_action")
 load(":vnames.bzl", "construct_vnames_config")
+load("@com_google_protobuf//bazel/toolchains:proto_lang_toolchain.bzl", "proto_lang_toolchain")
+load("@rules_java//java:defs.bzl", "java_binary", "java_import", "java_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -14,13 +16,19 @@ exports_files(glob([
 construct_vnames_config(
     name = "vnames_config",
     srcs = [
-            "vnames.cxx.json",
-            "vnames.go.json",
-            "vnames.java.json",
-            "vnames.json",
-        ],
+        # By default, the simple vname rules are used, which map everything
+        # to the corpus set via `--define kythe_corpus=<my corpus>`.
+        "simple_vnames.json",
+    ],
+    external_project_srcs = [
+        # If `--define kythe_assign_external_projects_to_separate_corpora=true`
+        # is provided, below vname rules are used.
+        "vnames.cxx.json",
+        "vnames.go.json",
+        "vnames.java.json",
+        "vnames.json",
+    ],
 )
-
 # Clone of default Java proto toolchain with "annotate_code" enabled for
 # cross-language metadata file generation.
 proto_lang_toolchain(
@@ -59,8 +67,14 @@ proto_lang_toolchain(
 # to output the metadata into a separate file.  This needs to be invoked with:
 #
 # bazel build \
-#   --proto_toolchain_for_cc=@io_kythe//kythe/extractor:cc_native_proto_toolchain \
+#   --extra_toolchains=@io_kythe//kythe/extractor:proto_toolchain_cc \
 #   --cc_proto_library_header_suffixes=.pb.h,.pb.h.meta
+toolchain(
+    name = "proto_toolchain_cc",
+    toolchain_type = "@com_google_protobuf//bazel/private:cc_toolchain_type",
+    toolchain = ":cc_native_proto_toolchain",
+)
+
 proto_lang_toolchain(
     name = "cc_native_proto_toolchain",
     command_line = "--cpp_out=annotate_headers,annotation_pragma_name=kythe_metadata,annotation_guard_name=KYTHE_IS_RUNNING:$(OUT)",
